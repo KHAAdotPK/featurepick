@@ -16,7 +16,15 @@ pub const ParseError = error{
 /// to use the standard behavior.
 pub const ParseOptions = struct {
     header: bool = false, // True if file has a header row (first row) 
-    replaceWhiteSpacesWith: u8 = ' ', // Replace white space with symbol. Default is space.  
+    replaceWhiteSpacesWith: u8 = ' ', // Replace white space with symbol. Default is space. 
+    
+    // Optional list of line numbers to skip (e.g. 1, 4, 5, 6...). 
+    // Checked in the code below.
+    skip_lines: ?[]const usize = null, // Each list entry is checked against 'line_no'
+    
+    // The current line number being parsed (needed to check if we should skip)
+    // We still strictly need `line_no` supplied to the parser! If we don't know the current line number, we have mathematically no way to compare against the `skip_lines` list
+    line_no: usize = 0,
 };
 
 pub const LineParser = struct {
@@ -55,9 +63,17 @@ pub const LineParser = struct {
 
         var quotationMarkFlag: bool = false;
 
-        if (options.header) {
-            
+        // If the optional skip_lines list is present, check if we should skip
+        if (options.skip_lines) |lines| {
+            for (lines) |skip_line| {
+                if (options.line_no == skip_line) {
+                    return; // Skip parsing entirely for this line
+                }
+            }
         }
+
+        // It is still empty becuase I still don't know what to do in here
+        if (options.header) {}
 
         // Iterate over tokens using the delimiter
         var it = std.mem.splitScalar(u8, self.text, self.delimiter);
@@ -69,19 +85,34 @@ pub const LineParser = struct {
                 //var concatenatedTokens = std.ArrayList(u8).init(self.allocator);
                 //defer concatenatedTokens.deinit();
 
-            // 1. Trim leading and trailing spaces from the token (returns a slice view, no allocation)
+            if (token.len == 0) {
+
+               std.debug.print("YES YES YES YES YES YES YES\n", .{}); 
+
+               continue;
+            }   
+
+            // 1. Trim Token Spaces
+            // --------------------
+            // Trim leading and trailing spaces from the token (returns a slice view, no allocation)
             const trimmed_token: []const u8 = std.mem.trim(u8, token, " ");
 
-            // 2. Allocate memory for the final token. Token is trimed its outer spaces and later its inner spaces will be (optionally) replaced with a symbol
+            // 2. Allocate Token Memory
+            // ------------------------
+            // Allocate memory for the final token. Token is trimed its outer spaces and later its inner spaces will be (optionally) replaced with a symbol
             var trimmed_replaced_token: []u8 = self.allocator.alloc(u8, trimmed_token.len) catch return ParseError.OutOfMemory;
             
-            // 3. Perform (optional) replacement of white spaces with a symbol into the allocated memory
+            // 3. Symbol Replacement
+            // ---------------------
+            // Perform (optional) replacement of white spaces with a symbol into the allocated memory
             const replacement: [1]u8 = [1]u8{options.replaceWhiteSpacesWith};
             _ = std.mem.replace(u8, trimmed_token, " ", &replacement, trimmed_replaced_token);
 
             // Between these stages 4. to 6., all tokens get concatenated into one token with white space being used as a separator
 
-            // 4. Check for leading '\"' mark
+            // 4. Check Leading Quotes
+            // -----------------------
+            // Check for leading '\"' mark
             if (trimmed_replaced_token[0] == '\"') {                
                 quotationMarkFlag = true;
                 trimmed_replaced_token = trimmed_replaced_token[1..];
@@ -92,7 +123,9 @@ pub const LineParser = struct {
                                 
                 //concatenatedTokens = std.mem.concat(self.allocator, u8, &[_][]const u8{concatenatedTokens, trimmed_replaced_token}) catch return ParseError.OutOfMemory;
             }  
-            // 5. Check for trailing '\"' mark
+            // 5. Check Trailing Quotes
+            // ------------------------
+            // Check for trailing '\"' mark
             else if (quotationMarkFlag and trimmed_replaced_token[trimmed_replaced_token.len - 1] == '\"') {
                 quotationMarkFlag = false;
                 trimmed_replaced_token = trimmed_replaced_token[0..(trimmed_replaced_token.len - 1)];
@@ -115,7 +148,8 @@ pub const LineParser = struct {
                     return ParseError.OutOfMemory;
                 };
             } 
-            // 6. 
+            // 6. Handle Intermediate Quoted Tokens
+            // ------------------------------------
             else if (quotationMarkFlag) {
 
                 // Add single space before the concatenation

@@ -14,7 +14,9 @@ const commands = "h,-h,help,(Display this help message)\n" ++
                  "v,-v,verbose,(Enable verbose output logging)\n" ++
                  "fi,-fi,input-file,(Path to the input file to read)\n" ++
                  "fo,-fo,output-file,(Path to the output file to write)\n" ++
-                 "c,-c,column,(0-based index of the column to extract)";
+                 "c,-c,column,(0-based index of the column to extract)\n" ++
+                 "r,-r,replace,(Replace white space with the symbol given as the argument to this option)\n" ++
+                 "remove-header,(Remove label line from the text)";
 
 // !void: Returns nothing on success, but can return an error.
 // You can also explicitly state the error set. For example, MyError!void means the function can only return errors defined in MyError or a void value.
@@ -24,12 +26,14 @@ pub fn main() !void {
 
     // Boiler plate code
 
-    // 1. SETUP ALLOCATOR
+    // 1. Setup Allocator
+    // ------------------
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     var arenaAllocator = arena.allocator();
 
-    // 2. GET ARGV / ARGC EQUIVALENT
+    // 2. Get ARGV / ARGC Equivalent
+    // -----------------------------
     // argsAlloc returns a slice ([][]const u8)
     const args = try std.process.argsAlloc(arenaAllocator);
     // Note: Since we use Arena, we don't strictly need argsFree, 
@@ -39,7 +43,8 @@ pub fn main() !void {
     //const argc = args.len;     // argc equivalent
     const argv = args;         // argv equivalent (can access as argv[0], etc.)
 
-    // 3. INSTANTIATE COMMAND LINE PROCESSOR
+    // 3. Instantiate Command Line Processor
+    // -------------------------------------
     var argsv = Argsv.Argsv.new(&arenaAllocator);   
 
     argsv.build(commands) catch |err| switch (err) {
@@ -51,9 +56,17 @@ pub fn main() !void {
     var argsvForOutputFile = argsv.find(commands, "-fo");
     var argsvForVerbose = argsv.find(commands, "verbose");
     var argsvForColumn = argsv.find(commands, "-c");
+    var argsvForReplace = argsv.find(commands, "replace");
+    var argsvForRemoveHeader = argsv.find(commands, "remove-header");
 
     var iFName: []const u8 = ""; // Input file name
     var oFName: []const u8 = ""; // Output file name
+
+    // If replace option is used, replace white space with the symbol given as the argument to this option
+    var whiteSpaceReplacement: u8 = '-';    
+    if (argsvForReplace.index() != 0) {
+        whiteSpaceReplacement = argv[argsvForReplace.index() + 1][0];
+    }
 
     if (argsvForInputFile.index() != 0) {
         if (argsvForInputFile.n() > 1) {
@@ -155,7 +168,7 @@ pub fn main() !void {
     // /// In other words,
     // /// if you provide an array object of 300 u8 values to readSliceAll(),
     // /// then, this method attempts to read 300 bytes of data from the “something”, and it stores them into the array object that you have provided.
-    // /// Another useful method is takeDelimiterExclusive(). In this method, you specify a “delimiter character”.
+    // /// Another useful method is take Delimiter Exclusive(). In this method, you specify a “delimiter character”.
     // /// This function will attempt to read as many bytes of data as possible from the “something” until it finds the “delimiter character” that you have specified,
     // /// and, it returns a slice with the data to you.
     // /// 
@@ -175,7 +188,8 @@ pub fn main() !void {
     // Buffer – 8KB is great for typical text lines
     var read_buffer: [8192]u8 = undefined; // Separate buffer for reading
 
-    // 1.
+    // 1. Setup Write Buffer
+    // ---------------------
     var write_buffer: [8192]u8 = undefined; // Separate buffer for writing
 
     // Since Zig 0.16, you will find different functions across the Zig Standard Library that takes an argument named io of type std.Io.
@@ -184,7 +198,8 @@ pub fn main() !void {
     // And this method have now, an io argument, in which you should provide the “IO backend implementation” that you want to use while reading the file.
     var file_reader = ifile.reader(io_backend, &read_buffer);
 
-    // 2.
+    // 2. Initialize File Writer
+    // -------------------------
     var file_writer = ofile.writer(&write_buffer);
 
     // Every IO operation in Zig is made through either a Reader or a Writer object.
@@ -192,10 +207,12 @@ pub fn main() !void {
     // Reader is an object that offers tools to read data from “something” (or “somewhere”)
     var reader = &file_reader.interface; // Get pointer to the interface
 
-    // 3.
+    // 3. Get Writer Interface Pointer
+    // -------------------------------
     var writer = &file_writer.interface; // Get pointer to the interface
 
-    var line_no: usize = 1;
+    var line_no: usize = 1; // 
+
     while (reader.takeDelimiter('\n')) |raw_line_opt| {
         
         // raw_line_opt is ?[]u8. Unwrap the optional part for when EOF is reached. When EOF then come out of the loop.
@@ -224,7 +241,17 @@ pub fn main() !void {
         // and the 'try' keyword would automatically propagate any error to the caller.
         // However, we are explicitly catching the error here for documentation/learning purposes
         // to show how we *could* handle specific errors if main() had a restricted signature.
-        lineParser.parse(.{.header = true, .replaceWhiteSpacesWith = '-'}) catch |err| {            
+        var skip_list: []const usize = &[_]usize{};
+        if (argsvForRemoveHeader.index() != 0) {
+            skip_list = &[_]usize{1};
+        }
+        
+        lineParser.parse(.{
+            .header = true, 
+            .replaceWhiteSpacesWith = whiteSpaceReplacement,
+            .skip_lines = if (skip_list.len > 0) skip_list else null,
+            .line_no = line_no,
+        }) catch |err| {            
             if (err == ParseError.OutOfMemory) {
 
                 std.debug.print("main() Error: Out of memory\n", .{});
@@ -282,11 +309,24 @@ pub fn main() !void {
         //const joined = try std.mem.join(arenaAllocator, " ", lineParser.tokens.items);
         //std.debug.print("  Joined: {s}\n", .{joined});
 
-        // 4.
+        // 4. Keeping Bounds Protection
+        // ----------------------------
+        // Re-apply the bounds protection block prior to writing output.
+        // Without this bound checker, reading a token on the lines purposefully skipped over using `-remove-header`
+        // will instantly execute an array out-of-bounds Panic because `tokens` list wasn't populated from taking the `return;` early exit! 
         //try writer.writeAll(line);
-        try writer.writeAll(lineParser.tokens.items[col_index]);
-        try writer.writeAll("\n");
+        if (col_index < lineParser.tokens.items.len) {
+            // Write the specifically requested column token from the current parsed row into our output buffer
+            try writer.writeAll(lineParser.tokens.items[col_index]); 
+            
+            // Append a newline character so each extracted item stacks vertically, forming a single column in the output file
+            try writer.writeAll("\n"); 
+        }
     
+        // Increment the tracker for the *next* iteration.
+        // Because `line_no` originated at `1` and is incremented here at the very end of each cycle,
+        // it pushes the counter one digit ahead of the actual total handled lines.
+        // (This is why we must subtract 1 in our final print statements at the bottom of the script!)
         line_no += 1;
     } else |err| switch (err) {
         error.StreamTooLong => {
@@ -296,11 +336,15 @@ pub fn main() !void {
         else => return err, // Unexpected read error
     }
 
-    // 5.
+    // 5. Flush Remaining Output
+    // -------------------------
     try writer.flush();
 
     std.debug.print("\n=== Finished ===\n", .{});
-    std.debug.print("Processed {} lines from '{s}'\n", .{ line_no - 1, iFName });  
+    // We subtract `- 1` because `line_no` starts initialized at `1` (not `0`),
+    // and correctly gets incremented (+1) at the VERY END of each while loop cycle.
+    // So if exactly 10 lines were read, `line_no` will be 11 upon loop exit!
+    std.debug.print("Processed {} lines from '{s}'\n", .{ line_no - 1, iFName }); 
     std.debug.print("Saved {} lines to '{s}'\n", .{ line_no - 1, oFName });
 
     return;
