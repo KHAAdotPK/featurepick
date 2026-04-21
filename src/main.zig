@@ -14,9 +14,9 @@ const commands = "h,-h,help,(Display this help message)\n" ++
                  "v,-v,verbose,(Enable verbose output logging)\n" ++
                  "fi,-fi,input-file,(Path to the input file to read)\n" ++
                  "fo,-fo,output-file,(Path to the output file to write)\n" ++
-                 "c,-c,column,(0-based index of the column to extract)\n" ++
-                 "r,-r,replace,(Replace white space with the symbol given as the argument to this option)\n" ++
-                 "remove-header,(Remove label line from the text)";
+                 "c,-c,column,(The 0-based index of the column to extract)\n" ++
+                 "r,-r,replace,(Replace whitespace with the specified character)\n" ++
+                 "remove-header,(Remove the header or first line from the input)";
 
 // !void: Returns nothing on success, but can return an error.
 // You can also explicitly state the error set. For example, MyError!void means the function can only return errors defined in MyError or a void value.
