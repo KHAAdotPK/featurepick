@@ -17,7 +17,9 @@ const commands = "h,-h,help,(Display this help message)\n" ++
                  "fo,-fo,output-file,(Path to the output file to write)\n" ++
                  "c,-c,column,(The 0-based index of the column to extract)\n" ++
                  "r,-r,replace,(Replace whitespace with the specified character)\n" ++
-                 "remove-header,(Remove the header or first line from the input)";
+                 "remove-header,(Remove the header or first line from the input)\n" ++
+                 "version,--version,(Displays the version number of this program)";
+
 
 // !void: Returns nothing on success, but can return an error.
 // You can also explicitly state the error set. For example, MyError!void means the function can only return errors defined in MyError or a void value.
@@ -60,9 +62,15 @@ pub fn main() !void {
     var argsvForReplace = argsv.find(commands, "replace");
     var argsvForRemoveHeader = argsv.find(commands, "remove-header");
     var argsvForHelp = argsv.find(commands, "help");
+    var argsvForVersion = argsv.find(commands, "--version");
 
     if (args.len == 1 or argsvForHelp.index() != 0) {
         Utility.help(commands);
+        return;
+    }
+
+    if (args.len == 1 or argsvForVersion.index() != 0) {
+        Utility.version();
         return;
     }
 

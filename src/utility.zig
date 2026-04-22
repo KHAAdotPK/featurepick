@@ -39,4 +39,24 @@ pub const Utility = struct {
         }
         std.debug.print("\n================================================================================\n\n", .{});
     }
+
+    /// Prints the version number and related info, in 80s share-ware style for giggles
+    pub fn version() void {
+        std.debug.print(
+            \\
+            \\ ========================================================
+            \\ ||                                                    ||
+            \\ ||               *** FeaturePick ***                  ||
+            \\ ||                  Version 1.0.0                     ||
+            \\ ||                                                    ||
+            \\ ||   Copyright (C) 202X  Q@hackers.pk                 ||
+            \\ ||                                                    ||
+            \\ ||   This software is distributed as SHAREWARE.       ||
+            \\ ||   Please register your copy today!                 ||
+            \\ ||                                                    ||
+            \\ ========================================================
+            \\
+            \\
+        , .{});
+    }
 };
