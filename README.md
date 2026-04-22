@@ -55,6 +55,7 @@ featurepick -fi <input_file> -fo <output_file> -c <column_index> [options]
 | `c` | `-c`, `column` | 0-based index of the column to extract. |
 | `r` | `-r`, `replace` | Replace whitespace within tokens with the given symbol (e.g. `-r _`). |
 | | `remove-header` | Skip the first (header/label) line from the output. |
+| `version` | `--version` | Displays the version number of this program. |
 
 ### Examples
 
@@ -80,6 +81,12 @@ Combine both — skip the header and replace whitespace with a dash:
 
 ```bash
 featurepick -fi dataset.csv -fo targets.txt -c 2 remove-header -r -
+```
+
+Check the current version of the tool:
+
+```bash
+featurepick version
 ```
 
 ## How it Works
