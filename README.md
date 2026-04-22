@@ -83,10 +83,12 @@ Combine both — skip the header and replace whitespace with a dash:
 featurepick -fi dataset.csv -fo targets.txt -c 2 remove-header -r -
 ```
 
-Check the current version of the tool:
+Check the current version of the tool and display the help message/Options and usage:
 
 ```bash
-featurepick version
+featurepick --version
+
+featurepick -h
 ```
 
 ## How it Works
