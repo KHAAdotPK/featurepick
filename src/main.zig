@@ -9,6 +9,7 @@ const std = @import("std");
 const Argsv = @import("argsv");
 const LineParser = @import("line_parser.zig").LineParser;
 const ParseError = @import("line_parser.zig").ParseError;
+const Utility = @import("utility.zig").Utility;
 
 const commands = "h,-h,help,(Display this help message)\n" ++
                  "v,-v,verbose,(Enable verbose output logging)\n" ++
@@ -58,6 +59,12 @@ pub fn main() !void {
     var argsvForColumn = argsv.find(commands, "-c");
     var argsvForReplace = argsv.find(commands, "replace");
     var argsvForRemoveHeader = argsv.find(commands, "remove-header");
+    var argsvForHelp = argsv.find(commands, "help");
+
+    if (args.len == 1 or argsvForHelp.index() != 0) {
+        Utility.help(commands);
+        return;
+    }
 
     var iFName: []const u8 = ""; // Input file name
     var oFName: []const u8 = ""; // Output file name
